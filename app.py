@@ -296,6 +296,9 @@ with tab4:
             e_discount = st.number_input("🏷️ 割引", min_value=0, step=100, value=int(float(row["割引"])) if row["割引"] != "" else 0)
             e_note = st.text_input("📝 備考", value=str(row["備考"]) if row["備考"] else "")
 
+            e_seikyu = e_amount - (e_hpb or 0) - (e_discount or 0)
+            st.info(f"請求額: **¥{e_seikyu:,}**")
+
             update_btn = st.form_submit_button("✅ 更新する", use_container_width=True, type="primary")
 
         if update_btn:
