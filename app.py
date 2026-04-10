@@ -239,10 +239,15 @@ with tab3:
         if sel_month != "全月":
             df_f = df_f[df_f["月"] == int(sel_month.replace("月", ""))]
 
-        menu_agg = df_f.groupby("メニュー")["最終売上"].agg(["sum", "count"]).reset_index()
-        menu_agg.columns = ["メニュー", "売上合計", "件数"]
+        df_f["割引"] = pd.to_numeric(df_f["割引"], errors="coerce").fillna(0)
+        menu_agg = df_f.groupby("メニュー").agg(
+            売上合計=("最終売上", "sum"),
+            件数=("最終売上", "count"),
+            割引合計=("割引", "sum")
+        ).reset_index()
         menu_agg = menu_agg.sort_values("売上合計", ascending=False)
         menu_agg["売上合計"] = menu_agg["売上合計"].apply(lambda x: f"¥{x:,.0f}")
+        menu_agg["割引合計"] = menu_agg["割引合計"].apply(lambda x: f"¥{x:,.0f}" if x > 0 else "-")
         st.dataframe(menu_agg, use_container_width=True, hide_index=True)
 
         menu_plot = df_f.groupby("メニュー")["最終売上"].sum().reset_index()
