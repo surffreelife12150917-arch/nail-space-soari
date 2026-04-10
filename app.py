@@ -89,7 +89,7 @@ def save_row(row_data):
 st.markdown("# Nail Space Soari")
 st.markdown("---")
 
-tab1, tab2, tab3 = st.tabs(["✍️  売上入力", "📊  月別グラフ", "🌸  メニュー別集計"])
+tab1, tab2, tab3, tab4 = st.tabs(["✍️  売上入力", "📊  月別グラフ", "🌸  メニュー別集計", "✏️  編集"])
 
 # =====================
 # TAB1: 売上入力
@@ -146,7 +146,30 @@ with tab1:
                           "メニュー2": menu2, "支払い方法": payment, "金額": amount,
                           "HPB": hpb, "割引": discount, "備考": note})
                 st.success("✅ 保存しました！")
-                st.balloons()
+                st.markdown("""
+<div style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;">
+<style>
+@keyframes sparkle {
+  0%   { transform: scale(0) rotate(0deg);   opacity: 1; }
+  50%  { transform: scale(1.2) rotate(180deg); opacity: 1; }
+  100% { transform: scale(0) rotate(360deg); opacity: 0; }
+}
+.spark { position:absolute; font-size:2rem; animation: sparkle 1.2s ease-out forwards; }
+</style>
+<span class="spark" style="left:10%;top:20%;animation-delay:0s;">✦</span>
+<span class="spark" style="left:25%;top:10%;animation-delay:0.1s;">✧</span>
+<span class="spark" style="left:50%;top:5%;animation-delay:0.2s;">✦</span>
+<span class="spark" style="left:70%;top:15%;animation-delay:0.15s;">✧</span>
+<span class="spark" style="left:85%;top:25%;animation-delay:0.05s;">✦</span>
+<span class="spark" style="left:15%;top:50%;animation-delay:0.25s;">✧</span>
+<span class="spark" style="left:40%;top:40%;animation-delay:0.1s;">✦</span>
+<span class="spark" style="left:60%;top:35%;animation-delay:0.3s;">✧</span>
+<span class="spark" style="left:80%;top:55%;animation-delay:0.2s;">✦</span>
+<span class="spark" style="left:30%;top:70%;animation-delay:0.15s;">✧</span>
+<span class="spark" style="left:55%;top:65%;animation-delay:0.05s;">✦</span>
+<span class="spark" style="left:75%;top:75%;animation-delay:0.2s;">✧</span>
+</div>
+""", unsafe_allow_html=True)
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 
@@ -234,5 +257,72 @@ with tab3:
         nc_agg.columns = ["種別", "売上合計", "件数"]
         nc_agg["売上合計"] = nc_agg["売上合計"].apply(lambda x: f"¥{x:,.0f}")
         st.dataframe(nc_agg, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.error(f"データ読み込みエラー: {e}")
+
+# =====================
+# TAB4: 編集
+# =====================
+with tab4:
+    st.markdown("### ✏️ 過去データの編集")
+    try:
+        df = load_data()
+        df_edit = df.copy()
+        df_edit["日付"] = df_edit["日付"].dt.strftime("%Y-%m-%d")
+        df_edit["表示"] = df_edit["日付"] + " | " + df_edit["メニュー"].astype(str) + " | ¥" + df_edit["金額"].astype(int).astype(str)
+
+        selected = st.selectbox("編集する記録を選択", df_edit["表示"].tolist()[::-1], key="edit_select")
+        idx = df_edit[df_edit["表示"] == selected].index[0]
+        row = df.iloc[idx]
+
+        with st.form("edit_form"):
+            e_col1, e_col2 = st.columns(2)
+            with e_col1:
+                e_date = st.date_input("📅 日付", value=pd.to_datetime(row["日付"]).date())
+            with e_col2:
+                e_customer = st.selectbox("👤 新規・再来", CUSTOMER_TYPES,
+                                          index=CUSTOMER_TYPES.index(row["新規・再来"]) if row["新規・再来"] in CUSTOMER_TYPES else 0)
+            e_col3, e_col4 = st.columns(2)
+            with e_col3:
+                e_menu = st.selectbox("💅 メニュー", MENUS,
+                                      index=MENUS.index(row["メニュー"]) if row["メニュー"] in MENUS else 0)
+            with e_col4:
+                e_menu2 = st.selectbox("＋ メニュー2", MENUS2,
+                                       index=MENUS2.index(row["メニュー2"]) if row["メニュー2"] in MENUS2 else 0)
+            e_payment = st.selectbox("💳 支払い方法", PAYMENTS,
+                                     index=PAYMENTS.index(row["支払い方法"]) if row["支払い方法"] in PAYMENTS else 0)
+            e_amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=int(row["金額"] or 0))
+            e_hpb = st.number_input("🎟️ HPB", min_value=0, step=100, value=int(float(row["HPB"])) if row["HPB"] != "" else 0)
+            e_discount = st.number_input("🏷️ 割引", min_value=0, step=100, value=int(float(row["割引"])) if row["割引"] != "" else 0)
+            e_note = st.text_input("📝 備考", value=str(row["備考"]) if row["備考"] else "")
+
+            update_btn = st.form_submit_button("✅ 更新する", use_container_width=True, type="primary")
+
+        if update_btn:
+            try:
+                gc = get_client()
+                ws = gc.open_by_key(SPREADSHEET_ID).sheet1
+                sheet_row = idx + 2
+                headers = ws.row_values(1)
+                hpb_v = e_hpb or 0
+                disc_v = e_discount or 0
+                updates = {
+                    "日付": str(e_date), "年月": f"{e_date.year}-{e_date.month:02d}-01",
+                    "年度": e_date.year, "年": e_date.year, "月": e_date.month,
+                    "新規・再来": e_customer, "メニュー": e_menu, "メニュー2": e_menu2,
+                    "支払い方法": e_payment, "金額": e_amount,
+                    "HPB": hpb_v if hpb_v > 0 else "",
+                    "割引": disc_v if disc_v > 0 else "",
+                    "請求額": e_amount - hpb_v - disc_v,
+                    "最終売上": e_amount, "備考": e_note,
+                }
+                for col_name, val in updates.items():
+                    if col_name in headers:
+                        col_idx = headers.index(col_name) + 1
+                        ws.update_cell(sheet_row, col_idx, val)
+                st.cache_data.clear()
+                st.success("✅ 更新しました！")
+            except Exception as e:
+                st.error(f"更新エラー: {e}")
     except Exception as e:
         st.error(f"データ読み込みエラー: {e}")
