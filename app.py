@@ -324,5 +324,34 @@ with tab4:
                 st.success("✅ 更新しました！")
             except Exception as e:
                 st.error(f"更新エラー: {e}")
+
+        st.markdown("---")
+        st.markdown("**🗑️ この記録を削除**")
+        if "delete_confirm" not in st.session_state:
+            st.session_state.delete_confirm = False
+
+        if not st.session_state.delete_confirm:
+            if st.button("削除する", use_container_width=True):
+                st.session_state.delete_confirm = True
+                st.rerun()
+        else:
+            st.warning("本当に削除しますか？この操作は元に戻せません。")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✅ はい、削除する", use_container_width=True, type="primary"):
+                    try:
+                        gc = get_client()
+                        ws = gc.open_by_key(SPREADSHEET_ID).sheet1
+                        ws.delete_rows(idx + 2)
+                        st.cache_data.clear()
+                        st.session_state.delete_confirm = False
+                        st.success("🗑️ 削除しました！")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"削除エラー: {e}")
+            with c2:
+                if st.button("キャンセル", use_container_width=True):
+                    st.session_state.delete_confirm = False
+                    st.rerun()
     except Exception as e:
         st.error(f"データ読み込みエラー: {e}")
