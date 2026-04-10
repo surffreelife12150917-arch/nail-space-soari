@@ -96,44 +96,48 @@ tab1, tab2, tab3 = st.tabs(["✍️  売上入力", "📊  月別グラフ", "�
 # =====================
 with tab1:
     st.markdown("### ✍️ 売上入力")
-    with st.form("sales_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            input_date = st.date_input("📅 日付", value=date.today())
-        with col2:
-            customer_type = st.selectbox("👤 新規・再来", CUSTOMER_TYPES)
 
-        col3, col4 = st.columns(2)
-        with col3:
-            menu = st.selectbox("💅 メニュー", MENUS)
-        with col4:
-            menu2 = st.selectbox("＋ メニュー2", MENUS2)
+    col1, col2 = st.columns(2)
+    with col1:
+        input_date = st.date_input("📅 日付", value=date.today())
+    with col2:
+        customer_type = st.selectbox("👤 新規・再来", CUSTOMER_TYPES)
 
-        payment = st.selectbox("💳 支払い方法", PAYMENTS)
-        amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=0)
-        hpb = st.number_input("🎟️ HPBポイント使用", min_value=0, step=100, value=0)
+    col3, col4 = st.columns(2)
+    with col3:
+        menu = st.selectbox("💅 メニュー", MENUS)
+    with col4:
+        menu2 = st.selectbox("＋ メニュー2", MENUS2)
 
-        st.markdown("**🏷️ 割引**")
-        st.caption("ボタンで選ぶか、金額を直接入力")
-        discount_type = st.radio("割引率", ["なし", "5%", "10%", "30%", "手入力"], horizontal=True, label_visibility="collapsed")
-        manual_discount = st.number_input("割引金額（手入力）", min_value=0, step=100, value=0, disabled=(discount_type != "手入力"))
+    payment = st.selectbox("💳 支払い方法", PAYMENTS)
+    amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=None, placeholder="金額を入力")
+    hpb = st.number_input("🎟️ HPBポイント使用", min_value=0, step=100, value=None, placeholder="0")
 
-        if discount_type == "5%":      discount = int(amount * 0.05)
-        elif discount_type == "10%":   discount = int(amount * 0.10)
-        elif discount_type == "30%":   discount = int(amount * 0.30)
-        elif discount_type == "手入力": discount = manual_discount
-        else:                          discount = 0
+    st.markdown("**🏷️ 割引**")
+    st.caption("ボタンで選ぶか、金額を直接入力")
+    discount_type = st.radio("割引率", ["なし", "5%", "10%", "30%", "手入力"], horizontal=True, label_visibility="collapsed")
+    manual_discount = st.number_input("割引金額（手入力）", min_value=0, step=100, value=None, placeholder="0", disabled=(discount_type != "手入力"))
 
-        note = st.text_input("📝 備考（任意）")
-        seikyu = amount - hpb - discount
+    amount = amount or 0
+    hpb = hpb or 0
+    manual_discount = manual_discount or 0
+
+    if discount_type == "5%":      discount = int(amount * 0.05)
+    elif discount_type == "10%":   discount = int(amount * 0.10)
+    elif discount_type == "30%":   discount = int(amount * 0.30)
+    elif discount_type == "手入力": discount = manual_discount
+    else:                          discount = 0
+
+    note = st.text_input("📝 備考（任意）")
+    seikyu = amount - hpb - discount
+
+    if amount > 0:
         if discount > 0:
             st.info(f"割引額: **¥{discount:,}**　→　請求額: **¥{seikyu:,}**")
         else:
             st.info(f"請求額: **¥{seikyu:,}**　／　金額: ¥{amount:,}")
 
-        submitted = st.form_submit_button("💾  保存する", use_container_width=True, type="primary")
-
-    if submitted:
+    if st.button("💾  保存する", use_container_width=True, type="primary"):
         if amount == 0:
             st.warning("金額を入力してください")
         else:
