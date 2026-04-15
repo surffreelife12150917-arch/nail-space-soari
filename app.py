@@ -326,13 +326,24 @@ with tab4:
                                                index=MENUS2.index(row["メニュー2"]) if row["メニュー2"] in MENUS2 else 0)
                     e_payment = st.selectbox("💳 支払い方法", PAYMENTS,
                                              index=PAYMENTS.index(row["支払い方法"]) if row["支払い方法"] in PAYMENTS else 0)
-                    e_amount   = st.number_input("💴 金額（円）", min_value=0, step=100, value=int(row["金額"] or 0))
-                    e_hpb      = st.number_input("🎟️ HPB", min_value=0, step=100, value=int(float(row["HPB"])) if str(row["HPB"]) not in ["", "nan"] else 0)
-                    e_discount = st.number_input("🏷️ 割引", min_value=0, step=100, value=int(float(row["割引"])) if str(row["割引"]) not in ["", "nan"] else 0)
-                    e_note     = st.text_input("📝 備考", value=str(row["備考"]) if row["備考"] else "")
+                    e_amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=int(row["金額"] or 0))
+                    e_hpb    = st.number_input("🎟️ HPB", min_value=0, step=100, value=int(float(row["HPB"])) if str(row["HPB"]) not in ["", "nan"] else 0)
 
-                    e_seikyu = e_amount - (e_hpb or 0) - (e_discount or 0)
-                    st.info(f"請求額: **¥{e_seikyu:,}**")
+                    st.markdown("**🏷️ 割引**")
+                    st.caption("ボタンで選ぶか、金額を直接入力")
+                    e_discount_type = st.radio("割引率", ["なし", "5%", "10%", "30%", "手入力"],
+                                               horizontal=True, label_visibility="collapsed", key="e_disc_type",
+                                               index=4)  # デフォルト：手入力
+                    existing_disc = int(float(row["割引"])) if str(row["割引"]) not in ["", "nan"] else 0
+                    e_manual_discount = st.number_input("割引金額（手入力）", min_value=0, step=100,
+                                                        value=existing_disc, key="e_manual_disc")
+
+                    e_note = st.text_input("📝 備考", value=str(row["備考"]) if row["備考"] else "")
+
+                    # 割引計算（フォーム内なのでサブミット時に確定）
+                    _amt = int(row["金額"] or 0)
+                    _ed  = existing_disc
+                    st.info(f"現在の請求額: **¥{_amt - (int(float(row['HPB'])) if str(row['HPB']) not in ['', 'nan'] else 0) - _ed:,}**　※更新後に反映")
 
                     update_btn = st.form_submit_button("✅ 更新する", use_container_width=True, type="primary")
 
@@ -343,7 +354,12 @@ with tab4:
                         sheet_row = idx + 2
                         headers = ws.row_values(1)
                         hpb_v  = e_hpb or 0
-                        disc_v = e_discount or 0
+                        # 割引計算（パーセント or 手入力）
+                        if e_discount_type == "5%":       disc_v = int(e_amount * 0.05)
+                        elif e_discount_type == "10%":    disc_v = int(e_amount * 0.10)
+                        elif e_discount_type == "30%":    disc_v = int(e_amount * 0.30)
+                        elif e_discount_type == "手入力": disc_v = e_manual_discount or 0
+                        else:                             disc_v = 0
                         updates = {
                             "日付": str(e_date), "年月": f"{e_date.year}-{e_date.month:02d}-01",
                             "年度": e_date.year, "年": e_date.year, "月": e_date.month,
