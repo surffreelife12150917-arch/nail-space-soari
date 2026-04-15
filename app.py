@@ -172,12 +172,21 @@ with tab2:
         years = sorted(df["年"].dropna().astype(int).unique().tolist(), reverse=True)
         selected_year = st.selectbox("年を選択", years, key="year_select")
         df_year = df[df["年"] == selected_year].copy()
-        monthly = df_year.groupby("月")["最終売上"].sum().reset_index()
-        monthly.columns = ["月", "売上"]
-        monthly["月"] = monthly["月"].astype(int)
+
+        # 12ヶ月分のデータ準備
+        monthly_all = df_year.groupby("月")["最終売上"].sum().reset_index()
+        monthly_all.columns = ["月", "売上"]
+        monthly_all["月"] = monthly_all["月"].astype(int)
         all_months = pd.DataFrame({"月": range(1, 13)})
-        monthly = all_months.merge(monthly, on="月", how="left").fillna(0)
-        monthly["月ラベル"] = monthly["月"].astype(str) + "月"
+        monthly_all = all_months.merge(monthly_all, on="月", how="left").fillna(0)
+
+        # 月スライダー
+        sel_month = st.slider("月を選択", min_value=1, max_value=12,
+                              value=date.today().month, format="%d月", key="month_slider")
+
+        # 選択月の売上
+        m_val = monthly_all[monthly_all["月"] == sel_month]["売上"].values[0]
+        prev_m_val = monthly_all[monthly_all["月"] == sel_month - 1]["売上"].values[0] if sel_month > 1 else 0
 
         def bar_color(v):
             if v < 100000:   return "#e0e0e0"
@@ -185,18 +194,37 @@ with tab2:
             elif v < 300000: return "#808080"
             elif v < 400000: return "#505050"
             else:            return "#1a1a1a"
-        monthly["color"] = monthly["売上"].apply(bar_color)
 
-        fig = px.bar(monthly, x="月ラベル", y="売上", title=f"{selected_year}年 月別売上", text="売上")
-        fig.update_traces(texttemplate="¥%{text:,.0f}", textposition="outside", marker_color=monthly["color"])
-        fig.update_layout(yaxis_title="売上（円）", xaxis_title="", showlegend=False, height=420,
-                          plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                          font=dict(family="Noto Sans JP"), title_font_size=16)
-        fig.update_yaxes(gridcolor="rgba(0,0,0,0.06)")
-        st.plotly_chart(fig, use_container_width=True)
+        # 選択月カード
+        diff = int(m_val - prev_m_val)
+        diff_str = f"前月比 ¥{diff:+,}" if sel_month > 1 else ""
+        st.markdown(f"""
+<div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:24px;text-align:center;margin:8px 0;">
+  <div style="font-size:1rem;color:#888;margin-bottom:4px;">{selected_year}年 {sel_month}月</div>
+  <div style="font-size:2.2rem;font-weight:700;color:{bar_color(m_val) if m_val > 0 else '#ccc'};">¥{int(m_val):,}</div>
+  <div style="font-size:0.85rem;color:{'#555' if diff >= 0 else '#c00'};margin-top:6px;">{diff_str}</div>
+</div>
+""", unsafe_allow_html=True)
 
-        total = monthly["売上"].sum()
-        nonzero = monthly[monthly["売上"] > 0]["売上"]
+        # 12ヶ月バー（静的・タッチ不可）
+        st.markdown("#### 年間推移")
+        bar_html = '<div style="display:flex;align-items:flex-end;gap:3px;height:120px;padding:0 4px;">'
+        max_val = monthly_all["売上"].max() or 1
+        for _, r in monthly_all.iterrows():
+            h = int((r["売上"] / max_val) * 100)
+            color = bar_color(r["売上"])
+            border = "2px solid #1a1a1a" if r["月"] == sel_month else "none"
+            bar_html += f'<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">'
+            bar_html += f'<div style="width:100%;height:{h}px;background:{color};border-radius:2px 2px 0 0;outline:{border};"></div>'
+            bar_html += f'<div style="font-size:0.6rem;color:{"#1a1a1a" if r["月"]==sel_month else "#aaa"};font-weight:{"700" if r["月"]==sel_month else "400"};">{int(r["月"])}月</div>'
+            bar_html += '</div>'
+        bar_html += '</div>'
+        st.markdown(bar_html, unsafe_allow_html=True)
+
+        # 年間サマリー
+        st.markdown("---")
+        total = monthly_all["売上"].sum()
+        nonzero = monthly_all[monthly_all["売上"] > 0]["売上"]
         avg = nonzero.mean() if len(nonzero) > 0 else 0
         c1, c2 = st.columns(2)
         c1.metric("💰 年間合計", f"¥{total:,.0f}")
