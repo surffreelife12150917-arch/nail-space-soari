@@ -267,99 +267,130 @@ with tab4:
 
     try:
         df = load_data()
-        df_edit = df.copy()
-        df_edit["日付"] = df_edit["日付"].dt.strftime("%Y-%m-%d")
-        df_edit["表示"] = df_edit["日付"] + " | " + df_edit["メニュー"].astype(str) + " | ¥" + df_edit["金額"].astype(int).astype(str)
-
-        selected = st.selectbox("編集する記録を選択", df_edit["表示"].tolist()[::-1], key="edit_select")
-        idx = df_edit[df_edit["表示"] == selected].index[0]
-        row = df.iloc[idx]
-
-        with st.form("edit_form"):
-            e_col1, e_col2 = st.columns(2)
-            with e_col1:
-                e_date = st.date_input("📅 日付", value=pd.to_datetime(row["日付"]).date())
-            with e_col2:
-                e_customer = st.selectbox("👤 新規・再来", CUSTOMER_TYPES,
-                                          index=CUSTOMER_TYPES.index(row["新規・再来"]) if row["新規・再来"] in CUSTOMER_TYPES else 0)
-            e_col3, e_col4 = st.columns(2)
-            with e_col3:
-                e_menu = st.selectbox("💅 メニュー", MENUS,
-                                      index=MENUS.index(row["メニュー"]) if row["メニュー"] in MENUS else 0)
-            with e_col4:
-                e_menu2 = st.selectbox("＋ メニュー2", MENUS2,
-                                       index=MENUS2.index(row["メニュー2"]) if row["メニュー2"] in MENUS2 else 0)
-            e_payment = st.selectbox("💳 支払い方法", PAYMENTS,
-                                     index=PAYMENTS.index(row["支払い方法"]) if row["支払い方法"] in PAYMENTS else 0)
-            e_amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=int(row["金額"] or 0))
-            e_hpb = st.number_input("🎟️ HPB", min_value=0, step=100, value=int(float(row["HPB"])) if row["HPB"] != "" else 0)
-            e_discount = st.number_input("🏷️ 割引", min_value=0, step=100, value=int(float(row["割引"])) if row["割引"] != "" else 0)
-            e_note = st.text_input("📝 備考", value=str(row["備考"]) if row["備考"] else "")
-
-            e_seikyu = e_amount - (e_hpb or 0) - (e_discount or 0)
-            st.info(f"請求額: **¥{e_seikyu:,}**")
-
-            update_btn = st.form_submit_button("✅ 更新する", use_container_width=True, type="primary")
-
-        if update_btn:
-            try:
-                gc = get_client()
-                ws = gc.open_by_key(SPREADSHEET_ID).sheet1
-                sheet_row = idx + 2
-                headers = ws.row_values(1)
-                hpb_v = e_hpb or 0
-                disc_v = e_discount or 0
-                updates = {
-                    "日付": str(e_date), "年月": f"{e_date.year}-{e_date.month:02d}-01",
-                    "年度": e_date.year, "年": e_date.year, "月": e_date.month,
-                    "新規・再来": e_customer, "メニュー": e_menu, "メニュー2": e_menu2,
-                    "支払い方法": e_payment, "金額": e_amount,
-                    "HPB": hpb_v if hpb_v > 0 else "",
-                    "割引": disc_v if disc_v > 0 else "",
-                    "請求額": e_amount - hpb_v - disc_v,
-                    "最終売上": e_amount, "備考": e_note,
-                }
-                for col_name, val in updates.items():
-                    if col_name in headers:
-                        col_idx = headers.index(col_name) + 1
-                        ws.update_cell(sheet_row, col_idx, val)
-                st.cache_data.clear()
-                st.session_state["edit_success"] = "✅ 更新しました！"
-                st.rerun()
-            except Exception as e:
-                st.error(f"更新エラー: {e}")
-
-        st.markdown("---")
-        st.markdown("**🗑️ この記録を削除**")
-        if "delete_confirm" not in st.session_state:
-            st.session_state.delete_confirm = False
-
-        if not st.session_state.delete_confirm:
-            if st.button("削除する", use_container_width=True):
-                st.session_state.delete_confirm = True
-                st.rerun()
+        if df.empty:
+            st.info("データがありません")
         else:
-            st.warning("本当に削除しますか？この操作は元に戻せません。")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ はい、削除する", use_container_width=True, type="primary"):
+            df_edit = df.copy()
+            df_edit["日付str"] = df_edit["日付"].dt.strftime("%Y-%m-%d")
+
+            # ── STEP1: 年・月で絞り込み ──
+            years_e = sorted(df_edit["年"].dropna().astype(int).unique().tolist(), reverse=True)
+            months_all = sorted(df_edit["月"].dropna().astype(int).unique().tolist(), reverse=True)
+
+            fc1, fc2 = st.columns(2)
+            with fc1:
+                sel_ey = st.selectbox("📅 年", years_e, key="edit_year")
+            with fc2:
+                months_in_year = sorted(df_edit[df_edit["年"] == sel_ey]["月"].dropna().astype(int).unique().tolist(), reverse=True)
+                sel_em = st.selectbox("📅 月", [f"{m}月" for m in months_in_year], key="edit_month")
+            sel_em_int = int(sel_em.replace("月", ""))
+
+            df_filtered = df_edit[(df_edit["年"] == sel_ey) & (df_edit["月"] == sel_em_int)].copy()
+            df_filtered = df_filtered.iloc[::-1]  # 新しい順
+
+            if df_filtered.empty:
+                st.info("該当データなし")
+            else:
+                # ── STEP2: 件数一覧から選ぶ ──
+                st.markdown(f"**{sel_ey}年{sel_em_int}月 — {len(df_filtered)}件**")
+
+                choices = []
+                for _, r in df_filtered.iterrows():
+                    d = r["日付str"]
+                    m1 = r["メニュー"] or ""
+                    m2 = r["メニュー2"] or ""
+                    amt = int(r["金額"] or 0)
+                    choices.append(f"{d}　{m1}／{m2}　¥{amt:,}")
+
+                sel_label = st.radio("編集する記録を選んでください", choices, key="edit_radio", label_visibility="collapsed")
+                sel_pos = choices.index(sel_label)
+                idx = df_filtered.index[sel_pos]
+                row = df.iloc[idx]
+
+                st.markdown("---")
+                st.markdown("**✏️ 編集フォーム**")
+
+                with st.form("edit_form"):
+                    e_col1, e_col2 = st.columns(2)
+                    with e_col1:
+                        e_date = st.date_input("📅 日付", value=pd.to_datetime(row["日付"]).date())
+                    with e_col2:
+                        e_customer = st.selectbox("👤 新規・再来", CUSTOMER_TYPES,
+                                                  index=CUSTOMER_TYPES.index(row["新規・再来"]) if row["新規・再来"] in CUSTOMER_TYPES else 0)
+                    e_col3, e_col4 = st.columns(2)
+                    with e_col3:
+                        e_menu = st.selectbox("💅 メニュー", MENUS,
+                                              index=MENUS.index(row["メニュー"]) if row["メニュー"] in MENUS else 0)
+                    with e_col4:
+                        e_menu2 = st.selectbox("＋ メニュー2", MENUS2,
+                                               index=MENUS2.index(row["メニュー2"]) if row["メニュー2"] in MENUS2 else 0)
+                    e_payment = st.selectbox("💳 支払い方法", PAYMENTS,
+                                             index=PAYMENTS.index(row["支払い方法"]) if row["支払い方法"] in PAYMENTS else 0)
+                    e_amount   = st.number_input("💴 金額（円）", min_value=0, step=100, value=int(row["金額"] or 0))
+                    e_hpb      = st.number_input("🎟️ HPB", min_value=0, step=100, value=int(float(row["HPB"])) if str(row["HPB"]) not in ["", "nan"] else 0)
+                    e_discount = st.number_input("🏷️ 割引", min_value=0, step=100, value=int(float(row["割引"])) if str(row["割引"]) not in ["", "nan"] else 0)
+                    e_note     = st.text_input("📝 備考", value=str(row["備考"]) if row["備考"] else "")
+
+                    e_seikyu = e_amount - (e_hpb or 0) - (e_discount or 0)
+                    st.info(f"請求額: **¥{e_seikyu:,}**")
+
+                    update_btn = st.form_submit_button("✅ 更新する", use_container_width=True, type="primary")
+
+                if update_btn:
                     try:
                         gc = get_client()
                         ws = gc.open_by_key(SPREADSHEET_ID).sheet1
-                        ws.delete_rows(idx + 2)
+                        sheet_row = idx + 2
+                        headers = ws.row_values(1)
+                        hpb_v  = e_hpb or 0
+                        disc_v = e_discount or 0
+                        updates = {
+                            "日付": str(e_date), "年月": f"{e_date.year}-{e_date.month:02d}-01",
+                            "年度": e_date.year, "年": e_date.year, "月": e_date.month,
+                            "新規・再来": e_customer, "メニュー": e_menu, "メニュー2": e_menu2,
+                            "支払い方法": e_payment, "金額": e_amount,
+                            "HPB": hpb_v if hpb_v > 0 else "",
+                            "割引": disc_v if disc_v > 0 else "",
+                            "請求額": e_amount - hpb_v - disc_v,
+                            "最終売上": e_amount, "備考": e_note,
+                        }
+                        for col_name, val in updates.items():
+                            if col_name in headers:
+                                col_idx = headers.index(col_name) + 1
+                                ws.update_cell(sheet_row, col_idx, val)
                         st.cache_data.clear()
-                        st.session_state.delete_confirm = False
-                        st.session_state["edit_success"] = "🗑️ 削除しました！"
+                        st.session_state["edit_success"] = "✅ 更新しました！"
                         st.rerun()
                     except Exception as e:
-                        st.error(f"削除エラー: {e}")
-                    if st.session_state.get("delete_done"):
-                        st.session_state["edit_success"] = "🗑️ 削除しました！"
-                        st.session_state.delete_done = False
-                        st.rerun()
-            with c2:
-                if st.button("キャンセル", use_container_width=True):
+                        st.error(f"更新エラー: {e}")
+
+                # ── 削除 ──
+                st.markdown("---")
+                if "delete_confirm" not in st.session_state:
                     st.session_state.delete_confirm = False
-                    st.rerun()
+
+                if not st.session_state.delete_confirm:
+                    if st.button("🗑️ この記録を削除する", use_container_width=True):
+                        st.session_state.delete_confirm = True
+                        st.rerun()
+                else:
+                    st.warning("本当に削除しますか？この操作は元に戻せません。")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        if st.button("✅ はい、削除する", use_container_width=True, type="primary"):
+                            try:
+                                gc = get_client()
+                                ws = gc.open_by_key(SPREADSHEET_ID).sheet1
+                                ws.delete_rows(idx + 2)
+                                st.cache_data.clear()
+                                st.session_state.delete_confirm = False
+                                st.session_state["edit_success"] = "🗑️ 削除しました！"
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"削除エラー: {e}")
+                    with c2:
+                        if st.button("キャンセル", use_container_width=True):
+                            st.session_state.delete_confirm = False
+                            st.rerun()
     except Exception as e:
         st.error(f"データ読み込みエラー: {e}")
