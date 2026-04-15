@@ -43,7 +43,7 @@ def get_client():
     creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPES)
     return gspread.authorize(creds)
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=10)
 def load_data():
     gc = get_client()
     ws = gc.open_by_key(SPREADSHEET_ID).sheet1
@@ -97,6 +97,11 @@ tab1, tab2, tab3, tab4 = st.tabs(["✍️  売上入力", "📊  月別グラフ
 with tab1:
     st.markdown("### ✍️ 売上入力")
 
+    # 保存完了メッセージ（rerun後に表示）
+    if st.session_state.get("save_success"):
+        st.success("✅ 保存しました！")
+        st.session_state.save_success = False
+
     col1, col2 = st.columns(2)
     with col1:
         input_date = st.date_input("📅 日付", value=date.today())
@@ -131,11 +136,18 @@ with tab1:
     note = st.text_input("📝 備考（任意）")
     seikyu = amount - hpb - discount
 
+    # 保存前の確認ボックス（常に表示）
     if amount > 0:
-        if discount > 0:
-            st.info(f"割引額: **¥{discount:,}**　→　請求額: **¥{seikyu:,}**")
-        else:
-            st.info(f"請求額: **¥{seikyu:,}**　／　金額: ¥{amount:,}")
+        st.markdown(f"""
+<div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:16px;margin:12px 0;">
+<div style="font-size:0.8rem;color:#888;margin-bottom:8px;">── 保存内容の確認 ──</div>
+<div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span>金額</span><strong>¥{amount:,}</strong></div>
+{"<div style='display:flex;justify-content:space-between;margin-bottom:4px;'><span>割引（" + discount_type + "）</span><strong style='color:#c00'>－¥" + f"{discount:,}" + "</strong></div>" if discount > 0 else ""}
+{"<div style='display:flex;justify-content:space-between;margin-bottom:4px;'><span>HPB</span><strong style='color:#c00'>－¥" + f"{hpb:,}" + "</strong></div>" if hpb > 0 else ""}
+<hr style="border-color:#e0e0e0;margin:8px 0;">
+<div style="display:flex;justify-content:space-between;font-size:1.1rem;"><span><strong>請求額</strong></span><strong>¥{seikyu:,}</strong></div>
+</div>
+""", unsafe_allow_html=True)
 
     if st.button("💾  保存する", use_container_width=True, type="primary"):
         if amount == 0:
@@ -145,31 +157,8 @@ with tab1:
                 save_row({"日付": input_date, "新規・再来": customer_type, "メニュー": menu,
                           "メニュー2": menu2, "支払い方法": payment, "金額": amount,
                           "HPB": hpb, "割引": discount, "備考": note})
-                st.success("✅ 保存しました！")
-                st.markdown("""
-<div style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;">
-<style>
-@keyframes sparkle {
-  0%   { transform: scale(0) rotate(0deg);   opacity: 1; }
-  50%  { transform: scale(1.2) rotate(180deg); opacity: 1; }
-  100% { transform: scale(0) rotate(360deg); opacity: 0; }
-}
-.spark { position:absolute; font-size:2rem; animation: sparkle 1.2s ease-out forwards; }
-</style>
-<span class="spark" style="left:10%;top:20%;animation-delay:0s;">✦</span>
-<span class="spark" style="left:25%;top:10%;animation-delay:0.1s;">✧</span>
-<span class="spark" style="left:50%;top:5%;animation-delay:0.2s;">✦</span>
-<span class="spark" style="left:70%;top:15%;animation-delay:0.15s;">✧</span>
-<span class="spark" style="left:85%;top:25%;animation-delay:0.05s;">✦</span>
-<span class="spark" style="left:15%;top:50%;animation-delay:0.25s;">✧</span>
-<span class="spark" style="left:40%;top:40%;animation-delay:0.1s;">✦</span>
-<span class="spark" style="left:60%;top:35%;animation-delay:0.3s;">✧</span>
-<span class="spark" style="left:80%;top:55%;animation-delay:0.2s;">✦</span>
-<span class="spark" style="left:30%;top:70%;animation-delay:0.15s;">✧</span>
-<span class="spark" style="left:55%;top:65%;animation-delay:0.05s;">✦</span>
-<span class="spark" style="left:75%;top:75%;animation-delay:0.2s;">✧</span>
-</div>
-""", unsafe_allow_html=True)
+                st.session_state.save_success = True
+                st.rerun()
             except Exception as e:
                 st.error(f"保存エラー: {e}")
 
@@ -270,6 +259,12 @@ with tab3:
 # =====================
 with tab4:
     st.markdown("### ✏️ 過去データの編集")
+
+    # 更新・削除完了メッセージ
+    if st.session_state.get("edit_success"):
+        st.success(st.session_state.edit_success)
+        st.session_state.edit_success = None
+
     try:
         df = load_data()
         df_edit = df.copy()
@@ -329,7 +324,8 @@ with tab4:
                         col_idx = headers.index(col_name) + 1
                         ws.update_cell(sheet_row, col_idx, val)
                 st.cache_data.clear()
-                st.success("✅ 更新しました！")
+                st.session_state["edit_success"] = "✅ 更新しました！"
+                st.rerun()
             except Exception as e:
                 st.error(f"更新エラー: {e}")
 
@@ -353,10 +349,14 @@ with tab4:
                         ws.delete_rows(idx + 2)
                         st.cache_data.clear()
                         st.session_state.delete_confirm = False
-                        st.success("🗑️ 削除しました！")
+                        st.session_state["edit_success"] = "🗑️ 削除しました！"
                         st.rerun()
                     except Exception as e:
                         st.error(f"削除エラー: {e}")
+                    if st.session_state.get("delete_done"):
+                        st.session_state["edit_success"] = "🗑️ 削除しました！"
+                        st.session_state.delete_done = False
+                        st.rerun()
             with c2:
                 if st.button("キャンセル", use_container_width=True):
                     st.session_state.delete_confirm = False
