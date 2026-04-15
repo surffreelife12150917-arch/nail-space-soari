@@ -332,11 +332,11 @@ with tab4:
                     st.markdown("**🏷️ 割引**")
                     st.caption("ボタンで選ぶか、金額を直接入力")
                     e_discount_type = st.radio("割引率", ["なし", "5%", "10%", "30%", "手入力"],
-                                               horizontal=True, label_visibility="collapsed", key="e_disc_type",
+                                               horizontal=True, label_visibility="collapsed", key=f"e_disc_type_{idx}",
                                                index=4)  # デフォルト：手入力
                     existing_disc = int(float(row["割引"])) if str(row["割引"]) not in ["", "nan"] else 0
                     e_manual_discount = st.number_input("割引金額（手入力）", min_value=0, step=100,
-                                                        value=existing_disc, key="e_manual_disc")
+                                                        value=existing_disc, key=f"e_manual_disc_{idx}")
 
                     e_note = st.text_input("📝 備考", value=str(row["備考"]) if row["備考"] else "")
 
