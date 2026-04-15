@@ -97,31 +97,31 @@ tab1, tab2, tab3, tab4 = st.tabs(["✍️  売上入力", "📊  月別グラフ
 with tab1:
     st.markdown("### ✍️ 売上入力")
 
-    # 保存完了メッセージ（rerun後に表示）
-    if st.session_state.get("save_success"):
-        st.success("✅ 保存しました！")
-        st.session_state.save_success = False
+    # フォームリセット用キー
+    if "form_key" not in st.session_state:
+        st.session_state.form_key = 0
+    fk = st.session_state.form_key
 
     col1, col2 = st.columns(2)
     with col1:
-        input_date = st.date_input("📅 日付", value=date.today())
+        input_date = st.date_input("📅 日付", value=date.today(), key=f"date_{fk}")
     with col2:
-        customer_type = st.selectbox("👤 新規・再来", CUSTOMER_TYPES)
+        customer_type = st.selectbox("👤 新規・再来", CUSTOMER_TYPES, key=f"ctype_{fk}")
 
     col3, col4 = st.columns(2)
     with col3:
-        menu = st.selectbox("💅 メニュー", MENUS)
+        menu = st.selectbox("💅 メニュー", MENUS, key=f"menu_{fk}")
     with col4:
-        menu2 = st.selectbox("＋ メニュー2", MENUS2)
+        menu2 = st.selectbox("＋ メニュー2", MENUS2, key=f"menu2_{fk}")
 
-    payment = st.selectbox("💳 支払い方法", PAYMENTS)
-    amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=None, placeholder="金額を入力")
-    hpb = st.number_input("🎟️ HPBポイント使用", min_value=0, step=100, value=None, placeholder="0")
+    payment = st.selectbox("💳 支払い方法", PAYMENTS, key=f"payment_{fk}")
+    amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=None, placeholder="金額を入力", key=f"amount_{fk}")
+    hpb = st.number_input("🎟️ HPBポイント使用", min_value=0, step=100, value=None, placeholder="0", key=f"hpb_{fk}")
 
     st.markdown("**🏷️ 割引**")
     st.caption("ボタンで選ぶか、金額を直接入力")
-    discount_type = st.radio("割引率", ["なし", "5%", "10%", "30%", "手入力"], horizontal=True, label_visibility="collapsed")
-    manual_discount = st.number_input("割引金額（手入力）", min_value=0, step=100, value=None, placeholder="0", disabled=(discount_type != "手入力"))
+    discount_type = st.radio("割引率", ["なし", "5%", "10%", "30%", "手入力"], horizontal=True, label_visibility="collapsed", key=f"dtype_{fk}")
+    manual_discount = st.number_input("割引金額（手入力）", min_value=0, step=100, value=None, placeholder="0", disabled=(discount_type != "手入力"), key=f"mdisc_{fk}")
 
     amount = amount or 0
     hpb = hpb or 0
@@ -133,10 +133,10 @@ with tab1:
     elif discount_type == "手入力": discount = manual_discount
     else:                          discount = 0
 
-    note = st.text_input("📝 備考（任意）")
+    note = st.text_input("📝 備考（任意）", key=f"note_{fk}")
     seikyu = amount - hpb - discount
 
-    # 保存前の確認ボックス（常に表示）
+    # 保存前の確認ボックス
     if amount > 0:
         st.markdown(f"""
 <div style="background:#fff;border:1px solid #e0e0e0;border-radius:4px;padding:16px;margin:12px 0;">
@@ -158,9 +158,39 @@ with tab1:
                           "メニュー2": menu2, "支払い方法": payment, "金額": amount,
                           "HPB": hpb, "割引": discount, "備考": note})
                 st.session_state.save_success = True
+                st.session_state.form_key += 1  # フォームリセット
                 st.rerun()
             except Exception as e:
                 st.error(f"保存エラー: {e}")
+
+    # 保存完了メッセージ＋キラキラ（ボタンの下）
+    if st.session_state.get("save_success"):
+        st.success("✅ 保存しました！")
+        st.markdown("""
+<div style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;">
+<style>
+@keyframes sparkle {
+  0%   { transform: scale(0) rotate(0deg);   opacity: 1; }
+  50%  { transform: scale(1.2) rotate(180deg); opacity: 1; }
+  100% { transform: scale(0) rotate(360deg); opacity: 0; }
+}
+.spark { position:absolute; font-size:2rem; animation: sparkle 1.2s ease-out forwards; }
+</style>
+<span class="spark" style="left:10%;top:20%;animation-delay:0s;">✦</span>
+<span class="spark" style="left:25%;top:10%;animation-delay:0.1s;">✧</span>
+<span class="spark" style="left:50%;top:5%;animation-delay:0.2s;">✦</span>
+<span class="spark" style="left:70%;top:15%;animation-delay:0.15s;">✧</span>
+<span class="spark" style="left:85%;top:25%;animation-delay:0.05s;">✦</span>
+<span class="spark" style="left:15%;top:50%;animation-delay:0.25s;">✧</span>
+<span class="spark" style="left:40%;top:40%;animation-delay:0.1s;">✦</span>
+<span class="spark" style="left:60%;top:35%;animation-delay:0.3s;">✧</span>
+<span class="spark" style="left:80%;top:55%;animation-delay:0.2s;">✦</span>
+<span class="spark" style="left:30%;top:70%;animation-delay:0.15s;">✧</span>
+<span class="spark" style="left:55%;top:65%;animation-delay:0.05s;">✦</span>
+<span class="spark" style="left:75%;top:75%;animation-delay:0.2s;">✧</span>
+</div>
+""", unsafe_allow_html=True)
+        st.session_state.save_success = False
 
 # =====================
 # TAB2: 月別グラフ
