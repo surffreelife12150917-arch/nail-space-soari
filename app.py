@@ -292,6 +292,17 @@ with tab3:
             件数=("最終売上", "count"),
             割引合計=("割引", "sum")
         ).reset_index()
+        # メニューごとの決済方法内訳を追加
+        pay_pivot = df_f.groupby(["メニュー", "支払い方法"]).size().unstack(fill_value=0)
+        for p in PAYMENTS:
+            if p not in pay_pivot.columns:
+                pay_pivot[p] = 0
+        pay_pivot = pay_pivot[PAYMENTS]
+        pay_pivot.columns = [f"{p}(件)" for p in PAYMENTS]
+        menu_agg = menu_agg.merge(pay_pivot, on="メニュー", how="left").fillna(0)
+        for p in PAYMENTS:
+            menu_agg[f"{p}(件)"] = menu_agg[f"{p}(件)"].astype(int)
+
         menu_agg = menu_agg.sort_values("売上合計", ascending=False)
         menu_agg["売上合計"] = menu_agg["売上合計"].apply(lambda x: f"¥{x:,.0f}")
         menu_agg["割引合計"] = menu_agg["割引合計"].apply(lambda x: f"¥{x:,.0f}" if x > 0 else "-")
@@ -303,6 +314,23 @@ with tab3:
                       color_discrete_sequence=["#1a1a1a", "#555", "#888", "#aaa", "#ccc", "#e0e0e0"], hole=0.4)
         fig2.update_layout(height=380, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Noto Sans JP"))
         st.plotly_chart(fig2, use_container_width=True)
+
+        # 決済方法別集計
+        st.markdown("### 💳 決済方法別集計")
+        pay_agg = df_f.groupby("支払い方法").agg(
+            合計金額=("最終売上", "sum"),
+            件数=("最終売上", "count")
+        ).reset_index()
+        pay_agg = pay_agg.sort_values("合計金額", ascending=False)
+        pay_agg["合計金額"] = pay_agg["合計金額"].apply(lambda x: f"¥{x:,.0f}")
+        st.dataframe(pay_agg, use_container_width=True, hide_index=True)
+
+        pay_plot = df_f.groupby("支払い方法")["最終売上"].sum().reset_index()
+        pay_plot = pay_plot[pay_plot["最終売上"] > 0]
+        fig3 = px.pie(pay_plot, names="支払い方法", values="最終売上", title="決済方法別売上構成",
+                      color_discrete_sequence=["#1a1a1a", "#555", "#888", "#ccc"], hole=0.4)
+        fig3.update_layout(height=380, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Noto Sans JP"))
+        st.plotly_chart(fig3, use_container_width=True)
 
         st.markdown("### 👥 新規・再来")
         nc_agg = df_f[df_f["新規・再来"].isin(["新規", "再来"])].groupby("新規・再来")["最終売上"].agg(["sum", "count"]).reset_index()
