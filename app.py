@@ -353,16 +353,23 @@ with tab4:
                 st.markdown(f"**{sel_ey}年{sel_em_int}月 — {len(df_filtered)}件**")
 
                 choices = []
-                for _, r in df_filtered.iterrows():
+                indices = []
+                for i, (orig_idx, r) in enumerate(df_filtered.iterrows()):
                     d = r["日付str"]
                     m1 = r["メニュー"] or ""
                     m2 = r["メニュー2"] or ""
                     amt = int(r["金額"] or 0)
-                    choices.append(f"{d}　{m1}／{m2}　¥{amt:,}")
+                    pay = r["支払い方法"] or ""
+                    label = f"{d}　{m1}／{m2}　¥{amt:,}　{pay}"
+                    # 同じラベルが重複する場合は連番を付ける
+                    if label in choices:
+                        label = f"{label}　({i+1})"
+                    choices.append(label)
+                    indices.append(orig_idx)
 
                 sel_label = st.radio("編集する記録を選んでください", choices, key="edit_radio", label_visibility="collapsed")
                 sel_pos = choices.index(sel_label)
-                idx = df_filtered.index[sel_pos]
+                idx = indices[sel_pos]
                 row = df.iloc[idx]
 
                 st.markdown("---")
