@@ -34,7 +34,7 @@ SPREADSHEET_ID = "1g40jis2r9PU1A7SqflLKWrJUQMQdpYCqqHjBFazs7Ps"
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 MENUS = ["ジェル", "ケア", "オフ", "耳つぼ", "店販"]
-MENUS2 = ["ハンド", "フット", "同時施術", "お買い物", "耳つぼ", "お直し"]
+MENUS2 = ["ハンド", "フット", "ハンドフット", "お買い物", "耳つぼ", "お直し"]
 PAYMENTS = ["現金", "QR", "クレジット", "スマート"]
 CUSTOMER_TYPES = ["再来", "新規"]
 

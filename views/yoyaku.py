@@ -7,7 +7,7 @@ import streamlit as st
 
 from common import (apply_style, check_login, load_df, append_row, update_row,
                     active_menu_names, menu_durations, CUSTOMER_HEADERS, RESERVE_HEADERS,
-                    OPEN_HOUR, CLOSE_HOUR, DEFAULT_DURATION)
+                    MENUS2, OPEN_HOUR, CLOSE_HOUR, DEFAULT_DURATION)
 
 st.markdown("""
 <style>
@@ -134,7 +134,8 @@ with tab1:
             f"box-shadow:0 1px 2px rgba(0,0,0,.12);'>"
             f"<span style='font-size:.68rem;font-weight:700;'>{r['時間']}〜{end_h}:{end_m:02d}"
             f"　{r['名前']} さん</span><br>"
-            f"<span style='font-size:.62rem;'>💅 {r['メニュー']}（{dur}分）</span></div>")
+            f"<span style='font-size:.62rem;'>💅 {r['メニュー']}"
+            f"{'・' + str(r['メニュー2']) if r.get('メニュー2') else ''}（{dur}分）</span></div>")
     st.markdown(
         f"<div style='position:relative;height:{total + 16}px;background:#fff;"
         f"border:1px solid #e0e0e0;border-radius:4px;margin-bottom:12px;'>"
@@ -148,7 +149,8 @@ with tab1:
         with st.container(border=True):
             cA, cB = st.columns([3, 1])
             with cA:
-                st.markdown(f"**{r['時間']}　{r['名前']} さん**　💅 {r['メニュー']}")
+                m2 = f"・{r['メニュー2']}" if r.get('メニュー2') else ""
+                st.markdown(f"**{r['時間']}　{r['名前']} さん**　💅 {r['メニュー']}{m2}")
                 if r.get("備考"):
                     st.caption(f"📝 {r['備考']}")
             with cB:
@@ -182,7 +184,11 @@ with tab2:
     if sel_name == "（新しいお客様・直接入力）":
         manual_name = st.text_input("お名前（呼び名でOK）", key=f"rmanual_{rk}")
 
-    r_menu = st.selectbox("💅 メニュー", MENUS, key=f"rmenu_{rk}")
+    c5, c6 = st.columns(2)
+    with c5:
+        r_menu = st.selectbox("💅 メニュー", MENUS, key=f"rmenu_{rk}")
+    with c6:
+        r_menu2 = st.selectbox("＋ メニュー2", ["なし"] + MENUS2, key=f"rmenu2_{rk}")
 
     dur_options = [30, 45, 60, 75, 90, 105, 120, 150, 180, 210, 240]
     menu_default = DURATIONS.get(r_menu, DEFAULT_DURATION)
@@ -214,13 +220,15 @@ with tab2:
         end_h, end_m = divmod(new_end, 60)
         if new_end > CLOSE_HOUR * 60:
             st.warning(f"⚠️ 終了予定 {end_h}:{end_m:02d} が営業時間（{CLOSE_HOUR}:00まで）を超えます")
+        m2_label = "" if r_menu2 == "なし" else f"・{r_menu2}"
         st.info(f"📅 {r_date}（{'月火水木金土日'[r_date.weekday()]}）{r_time}〜{end_h}:{end_m:02d}"
-                f"　**{final_name} さん**　{r_menu}（{r_dur}分）")
+                f"　**{final_name} さん**　{r_menu}{m2_label}（{r_dur}分）")
         if st.button("この内容で予約を保存", use_container_width=True):
             append_row("予約", RESERVE_HEADERS, {
                 "予約ID": uuid.uuid4().hex[:8],
                 "日付": str(r_date), "時間": r_time, "所要時間": r_dur, "名前": final_name,
-                "メニュー": r_menu, "備考": r_note, "ステータス": "予約中",
+                "メニュー": r_menu, "メニュー2": "" if r_menu2 == "なし" else r_menu2,
+                "備考": r_note, "ステータス": "予約中",
             })
             st.session_state.rsv_key += 1
             st.success("✅ 予約を保存しました")
