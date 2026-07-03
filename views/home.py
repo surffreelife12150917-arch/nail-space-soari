@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from common import (apply_style, check_login, get_client, load_df, load_sales,
-                    update_row, active_menu_names, SPREADSHEET_ID, RESERVE_HEADERS)
+                    update_row, active_menu_names, MENUS2, SPREADSHEET_ID, RESERVE_HEADERS)
 
 
 
@@ -63,7 +63,7 @@ st.markdown("---")
 # クイック売上入力
 # =====================
 st.markdown("### ✍️ クイック売上入力")
-st.caption("最低限だけ。割引やHPBポイントを使うときは左メニューの「売上」からどうぞ。")
+st.caption("最低限だけ。HPBポイントなど細かい入力は左メニューの「売上」からどうぞ。")
 
 if "quick_key" not in st.session_state:
     st.session_state.quick_key = 0
@@ -73,7 +73,9 @@ c1, c2 = st.columns(2)
 with c1:
     q_menu = st.selectbox("💅 メニュー", active_menu_names(), key=f"qmenu_{qk}")
 with c2:
-    q_ctype = st.selectbox("👤 新規・再来", CUSTOMER_TYPES, key=f"qctype_{qk}")
+    q_menu2 = st.selectbox("＋ メニュー2", MENUS2, key=f"qmenu2_{qk}")
+
+q_ctype = st.selectbox("👤 新規・再来", CUSTOMER_TYPES, key=f"qctype_{qk}")
 
 c3, c4 = st.columns(2)
 with c3:
@@ -82,9 +84,24 @@ with c4:
     q_amount = st.number_input("💴 金額（円）", min_value=0, step=100, value=None,
                                placeholder="金額を入力", key=f"qamt_{qk}")
 
+st.markdown("**🏷️ 割引**")
+q_dtype = st.radio("割引率", ["なし", "5%", "10%", "30%", "手入力"], horizontal=True,
+                   label_visibility="collapsed", key=f"qdtype_{qk}")
+q_manual = st.number_input("割引金額（手入力）", min_value=0, step=100, value=None, placeholder="0",
+                           disabled=(q_dtype != "手入力"), key=f"qmdisc_{qk}")
+
 q_amount = q_amount or 0
+q_manual = q_manual or 0
+if q_dtype == "5%":      q_discount = int(q_amount * 0.05)
+elif q_dtype == "10%":   q_discount = int(q_amount * 0.10)
+elif q_dtype == "30%":   q_discount = int(q_amount * 0.30)
+elif q_dtype == "手入力": q_discount = q_manual
+else:                    q_discount = 0
+
 if q_amount > 0:
-    st.info(f"📅 今日 ／ {q_menu} ／ {q_payment} ／ **¥{q_amount:,}**（{q_ctype}）")
+    q_seikyu = q_amount - q_discount
+    disc_label = f" 割引 -¥{q_discount:,} → 請求 ¥{q_seikyu:,}" if q_discount else ""
+    st.info(f"📅 今日 ／ {q_menu}・{q_menu2} ／ {q_payment} ／ **¥{q_amount:,}**（{q_ctype}）{disc_label}")
     if st.button("保存する", use_container_width=True):
         gc = get_client()
         ws = gc.open_by_key(SPREADSHEET_ID).sheet1
@@ -98,9 +115,11 @@ if q_amount > 0:
         new_row["新規・再来"] = q_ctype
         new_row["担当"] = "西"
         new_row["メニュー"] = q_menu
+        new_row["メニュー2"] = q_menu2
         new_row["支払い方法"] = q_payment
         new_row["金額"] = q_amount
-        new_row["請求額"] = q_amount
+        new_row["割引"] = q_discount if q_discount > 0 else ""
+        new_row["請求額"] = q_amount - q_discount
         new_row["最終売上"] = q_amount
         ws.append_row([new_row.get(h, "") for h in headers])
         st.cache_data.clear()
