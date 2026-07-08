@@ -4,7 +4,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from common import (apply_style, check_login, get_client, load_df, load_sales,
+from common import (jst_today, apply_style, check_login, get_client, load_df, load_sales,
                     update_row, active_menu_names, MENUS2, SPREADSHEET_ID, RESERVE_HEADERS)
 
 
@@ -13,7 +13,7 @@ PAYMENTS = ["現金", "QR", "クレジット", "スマート"]
 CUSTOMER_TYPES = ["再来", "新規"]
 STATUS = ["予約中", "来店済", "キャンセル"]
 
-today = date.today()
+today = jst_today()
 wd = "月火水木金土日"[today.weekday()]
 
 st.markdown("# Nail Space Soari")

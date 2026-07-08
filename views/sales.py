@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from datetime import date
+from common import jst_today
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -103,7 +104,7 @@ with tab1:
 
     col1, col2 = st.columns(2)
     with col1:
-        input_date = st.date_input("📅 日付", value=date.today(), key=f"date_{fk}")
+        input_date = st.date_input("📅 日付", value=jst_today(), key=f"date_{fk}")
     with col2:
         customer_type = st.selectbox("👤 新規・再来", CUSTOMER_TYPES, key=f"ctype_{fk}")
 
@@ -211,7 +212,7 @@ with tab2:
 
         # 月スライダー
         sel_month = st.slider("月を選択", min_value=1, max_value=12,
-                              value=date.today().month, format="%d月", key="month_slider")
+                              value=jst_today().month, format="%d月", key="month_slider")
 
         # 選択月の売上
         m_val = monthly_all[monthly_all["月"] == sel_month]["売上"].values[0]

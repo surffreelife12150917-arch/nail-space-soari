@@ -5,7 +5,7 @@ from datetime import date, datetime
 import pandas as pd
 import streamlit as st
 
-from common import (apply_style, check_login, load_df, append_row, update_row,
+from common import (jst_today, apply_style, check_login, load_df, append_row, update_row,
                     active_menu_names, menu_durations, CUSTOMER_HEADERS, RESERVE_HEADERS,
                     MENUS2, OPEN_HOUR, CLOSE_HOUR, DEFAULT_DURATION)
 
@@ -56,7 +56,7 @@ tab1, tab2, tab3, tab4 = st.tabs(["📅  予約カレンダー", "➕  予約追
 # =====================
 with tab1:
     if "cal_ym" not in st.session_state:
-        t = date.today()
+        t = jst_today()
         st.session_state.cal_ym = (t.year, t.month)
 
     y, m = st.session_state.cal_ym
@@ -85,7 +85,7 @@ with tab1:
 
     cal = calendar.Calendar(firstweekday=6)  # 日曜はじまり
     weeks = cal.monthdatescalendar(y, m)
-    today = date.today()
+    today = jst_today()
 
     html = "<table class='cal'><tr>" + "".join(f"<th>{w}</th>" for w in ["日", "月", "火", "水", "木", "金", "土"]) + "</tr>"
     for week in weeks:
@@ -175,7 +175,7 @@ with tab2:
 
     c1, c2 = st.columns(2)
     with c1:
-        r_date = st.date_input("📅 日付", value=date.today(), key=f"rdate_{rk}")
+        r_date = st.date_input("📅 日付", value=jst_today(), key=f"rdate_{rk}")
     with c2:
         r_time = st.selectbox("🕐 時間", TIMES, index=TIMES.index("10:00"), key=f"rtime_{rk}")
 
@@ -262,7 +262,7 @@ with tab3:
                 "顧客ID": uuid.uuid4().hex[:8],
                 "名前": c_name.strip(), "目印メモ": c_mark, "爪質": c_nail,
                 "アレルギー": c_allergy, "好み": c_taste, "施術メモ": c_memo,
-                "次回提案": c_next, "登録日": str(date.today()),
+                "次回提案": c_next, "登録日": str(jst_today()),
             })
             st.session_state.cst_key += 1
             st.success(f"✅ {c_name.strip()} さんのカルテを作成しました")
@@ -309,7 +309,7 @@ with tab4:
                     visits = rsv[(rsv["名前"] == row["名前"]) & (rsv["ステータス"] == "来店済")].sort_values("日付", ascending=False)
                     if not visits.empty:
                         last = visits.iloc[0]["日付"]
-                        days_ago = (date.today() - datetime.strptime(last, "%Y-%m-%d").date()).days
+                        days_ago = (jst_today() - datetime.strptime(last, "%Y-%m-%d").date()).days
                         st.markdown(f"**🗓 来店履歴**（最終来店：{last}・{days_ago}日前）")
                         st.dataframe(visits[["日付", "時間", "メニュー", "備考"]], hide_index=True, use_container_width=True)
                         if days_ago >= 21:
