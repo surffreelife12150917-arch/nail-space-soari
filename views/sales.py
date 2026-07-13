@@ -56,6 +56,12 @@ def load_data():
     df["月"] = pd.to_numeric(df["月"], errors="coerce")
     df["最終売上"] = pd.to_numeric(df["最終売上"], errors="coerce").fillna(0)
     df["金額"] = pd.to_numeric(df["金額"], errors="coerce").fillna(0)
+    for c in ["割引", "HPB", "請求額"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+        else:
+            df[c] = 0
+    df["実売上"] = df["請求額"].where(df["請求額"] > 0, df["最終売上"] - df["割引"] - df["HPB"])
     return df
 
 def save_row(row_data):
@@ -204,7 +210,7 @@ with tab2:
         df_year = df[df["年"] == selected_year].copy()
 
         # 12ヶ月分のデータ準備
-        monthly_all = df_year.groupby("月")["最終売上"].sum().reset_index()
+        monthly_all = df_year.groupby("月")["実売上"].sum().reset_index()
         monthly_all.columns = ["月", "売上"]
         monthly_all["月"] = monthly_all["月"].astype(int)
         all_months = pd.DataFrame({"月": range(1, 13)})
@@ -260,7 +266,7 @@ with tab2:
         c1.metric("💰 年間合計", f"¥{total:,.0f}")
         c2.metric("📈 月平均", f"¥{avg:,.0f}")
         if selected_year - 1 in years:
-            prev_total = df[df["年"] == selected_year - 1]["最終売上"].sum()
+            prev_total = df[df["年"] == selected_year - 1]["実売上"].sum()
             diff_pct = ((total - prev_total) / prev_total * 100) if prev_total > 0 else 0
             st.metric("🔄 前年比", f"{diff_pct:+.1f}%", delta=f"¥{total - prev_total:+,.0f}")
     except Exception as e:
@@ -286,9 +292,8 @@ with tab3:
         if sel_month != "全月":
             df_f = df_f[df_f["月"] == int(sel_month.replace("月", ""))]
 
-        df_f["割引"] = pd.to_numeric(df_f["割引"], errors="coerce").fillna(0)
         menu_agg = df_f.groupby("メニュー").agg(
-            売上合計=("最終売上", "sum"),
+            売上合計=("実売上", "sum"),
             件数=("最終売上", "count"),
             割引合計=("割引", "sum")
         ).reset_index()
@@ -308,9 +313,9 @@ with tab3:
         menu_agg["割引合計"] = menu_agg["割引合計"].apply(lambda x: f"¥{x:,.0f}" if x > 0 else "-")
         st.dataframe(menu_agg, use_container_width=True, hide_index=True)
 
-        menu_plot = df_f.groupby("メニュー")["最終売上"].sum().reset_index()
-        menu_plot = menu_plot[menu_plot["最終売上"] > 0]
-        fig2 = px.pie(menu_plot, names="メニュー", values="最終売上", title="メニュー別売上構成",
+        menu_plot = df_f.groupby("メニュー")["実売上"].sum().reset_index()
+        menu_plot = menu_plot[menu_plot["実売上"] > 0]
+        fig2 = px.pie(menu_plot, names="メニュー", values="実売上", title="メニュー別売上構成",
                       color_discrete_sequence=["#1a1a1a", "#555", "#888", "#aaa", "#ccc", "#e0e0e0"], hole=0.4)
         fig2.update_layout(height=380, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Noto Sans JP"))
         st.plotly_chart(fig2, use_container_width=True)
@@ -318,22 +323,22 @@ with tab3:
         # 決済方法別集計
         st.markdown("### 💳 決済方法別集計")
         pay_agg = df_f.groupby("支払い方法").agg(
-            合計金額=("最終売上", "sum"),
-            件数=("最終売上", "count")
+            合計金額=("実売上", "sum"),
+            件数=("実売上", "count")
         ).reset_index()
         pay_agg = pay_agg.sort_values("合計金額", ascending=False)
         pay_agg["合計金額"] = pay_agg["合計金額"].apply(lambda x: f"¥{x:,.0f}")
         st.dataframe(pay_agg, use_container_width=True, hide_index=True)
 
-        pay_plot = df_f.groupby("支払い方法")["最終売上"].sum().reset_index()
-        pay_plot = pay_plot[pay_plot["最終売上"] > 0]
-        fig3 = px.pie(pay_plot, names="支払い方法", values="最終売上", title="決済方法別売上構成",
+        pay_plot = df_f.groupby("支払い方法")["実売上"].sum().reset_index()
+        pay_plot = pay_plot[pay_plot["実売上"] > 0]
+        fig3 = px.pie(pay_plot, names="支払い方法", values="実売上", title="決済方法別売上構成",
                       color_discrete_sequence=["#1a1a1a", "#555", "#888", "#ccc"], hole=0.4)
         fig3.update_layout(height=380, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(family="Noto Sans JP"))
         st.plotly_chart(fig3, use_container_width=True)
 
         st.markdown("### 👥 新規・再来")
-        nc_agg = df_f[df_f["新規・再来"].isin(["新規", "再来"])].groupby("新規・再来")["最終売上"].agg(["sum", "count"]).reset_index()
+        nc_agg = df_f[df_f["新規・再来"].isin(["新規", "再来"])].groupby("新規・再来")["実売上"].agg(["sum", "count"]).reset_index()
         nc_agg.columns = ["種別", "売上合計", "件数"]
         nc_agg["売上合計"] = nc_agg["売上合計"].apply(lambda x: f"¥{x:,.0f}")
         st.dataframe(nc_agg, use_container_width=True, hide_index=True)

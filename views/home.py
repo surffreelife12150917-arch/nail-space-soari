@@ -27,9 +27,10 @@ st.markdown("---")
 sales = load_sales()
 if not sales.empty:
     today_sales = sales[sales["日付"].dt.date == today]
-    c1, c2 = st.columns(2)
-    c1.metric("💴 今日の売上", f"¥{int(today_sales['最終売上'].sum()):,}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("💴 今日の売上", f"¥{int(today_sales['実売上'].sum()):,}", help="割引後の実際にいただいた金額")
     c2.metric("🧾 今日の件数", f"{len(today_sales)} 件")
+    c3.metric("🏷️ 今日の割引", f"¥{int(today_sales['割引'].sum()):,}")
 
 # =====================
 # 今日の予約

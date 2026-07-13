@@ -164,4 +164,11 @@ def load_sales():
     df["年"] = pd.to_numeric(df["年"], errors="coerce")
     df["月"] = pd.to_numeric(df["月"], errors="coerce")
     df["最終売上"] = pd.to_numeric(df["最終売上"], errors="coerce").fillna(0)
+    for c in ["割引", "HPB", "請求額"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
+        else:
+            df[c] = 0
+    # 実売上 ＝ 割引後に実際いただいた金額（請求額）。古い行で請求額が無ければ計算で補う
+    df["実売上"] = df["請求額"].where(df["請求額"] > 0, df["最終売上"] - df["割引"] - df["HPB"])
     return df
